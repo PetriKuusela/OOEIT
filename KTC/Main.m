@@ -1,6 +1,7 @@
 close all; clear all; clc;
 
 addpath('..');
+initialize_OOEIT();
 
 %% Load meshes for inverse problem
 %Load meshes for solving the inverse problem, i.e. a 3D forward mesh and a
@@ -55,7 +56,7 @@ resobj = cell(3, 1);
 resobj{1} = solver;
 resobj{2} = TVPrior;
 resobj{3} = PosiPrior;
-InvSolver = SolverLinesearch(resobj);
+InvSolver = SolverGN(resobj);
 InvSolver.maxIter = 150;
 InvSolver.Plotter = plotter;
 
