@@ -1,13 +1,15 @@
 close all; clear all; clc
 %This is the main-script for a simple traditional watertank EIT
-%simulation with inverse crime using the second order mesh.
+%simulation WITH inverse crime demonstrating using the second order mesh.
+
+initialize_OOEIT();%Make sure all the relevant paths are added
 
 %% Create simulated data
 disp('Creating simulated data');
 
 simuname = '2ndsimu';
 nel = 16;
-vincl = true(nel,nel);
+vincl = true(nel,nel);%this variable tells which measurements are to be used; now its all of the measurements
 vincl = vincl(:);
 
 load_data = 0;%Do we run the simulation or just load the data.
@@ -16,25 +18,26 @@ if load_data
     disp(['Loaded simulated data from file ' simuname 'data.mat']);
 else
     load('meshfiles/watertankmesh2nd.mat');%Load mesh variables
-    ginvsimu = ginv(:,1:2);
-    Hinvsimu = Hinv;
-    gsimu = g;
-    Hsimu = H;
-    elfacessimu = elfaces;
-    sigmasimu = GenerateEllipseInGrid(ginvsimu, Hinvsimu, 1, 10, 4e-2, 3e-2, 5e-2, 0e-2, 1e-2, 1);%Generate a single blob as a target
-    z = 1e-9*ones(nel,1);
-    fmsimu = ForwardMesh2nd(gsimu, Hsimu, elfacessimu);
-    imesh.g = ginvsimu;
+    ginvsimu = ginv(:,1:2);%The node coordinates of the inverse mesh (a 1st order mesh where the conductivity is defined)
+    Hinvsimu = Hinv;%The element connectivity of the inverse mesh
+    gsimu = g;%The node coordinates of the forward mesh (a 2nd order mesh)
+    Hsimu = H;%The element connectivity of the forward mesh
+    elfacessimu = elfaces;%boundary element connectivity for each electrode
+    fmsimu = ForwardMesh2nd(gsimu, Hsimu, elfacessimu);%create the mesh object
+    imesh.g = ginvsimu;%also create an inverse mesh struct
     imesh.H = Hinvsimu;
-    fmsimu.SetInverseMesh(imesh);
-    [Umeas, Imeas] = Simulation(fmsimu, [], sigmasimu, z, [], 'potential', [0 0 0 0]);
-    save([simuname 'data.mat'], 'Umeas', 'Imeas', 'sigmasimu', 'z', 'ginvsimu', 'Hinvsimu');
+    fmsimu.SetInverseMesh(imesh);%and pass the inverse mesh to the forward mesh object
+
+    sigmasimu = GenerateEllipse(ginvsimu, 1, 10, 4e-2, 3e-2, 5e-2, 0e-2, 1e-2);%Generate a single blob as a target
+    [Umeas, Imeas] = Simulation(fmsimu, [], sigmasimu, [], [], [], [0 0 0 0]);
+    save([simuname 'data.mat'], 'Umeas', 'Imeas', 'sigmasimu', 'ginvsimu', 'Hinvsimu');
     disp(['simulation run succesfully, results saved in ' simuname 'data.mat']);
 end
 
 %% Load meshes for inverse problem
-%Load meshes for solving the inverse problem, i.e. a 3D forward mesh and a
-%2D inverse mesh.
+%Load meshes for solving the inverse problem, i.e. a 3D 2nd order forward mesh and a
+%2D inverse mesh. (Here a same mesh is used as in simulations, i.e. inverse
+%crime is committed)
 load('meshfiles/watertankmesh2nd.mat');
 ginv = ginv(:,1:2);
 fm = ForwardMesh2nd(g, H, elfaces);
@@ -48,9 +51,6 @@ disp('meshfiles loaded');
 
 %Set up the forward problem solver:
 solver = EITFEM(fm);
-solver.sigmamin = 1e-9;
-solver.zeta = 1e-9*ones(nel,1);
-solver.mode = 'potential';
 solver.vincl = vincl;
 solver.Iel = Imeas;
 solver.Uel = Umeas;
@@ -79,7 +79,7 @@ resobj = cell(3, 1);
 resobj{1} = solver;
 resobj{2} = TVPrior;
 resobj{3} = PosiPrior;
-InvSolver = SolverLinesearch(resobj);
+InvSolver = SolverGN(resobj);
 InvSolver.maxIter = 100;
 InvSolver.Plotter = plotter;
 

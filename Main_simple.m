@@ -1,95 +1,83 @@
-close all; clear all; clc
-%This is the main-script for a simple traditional watertank EIT
-%simulation with inverse crime.
+%This main-file features the example codes presented in the OOEIT article
+%(not yet published by the time of this comment). This is a very basic
+%usecase of first simulating the EIT measurements and then reconstructing
+%the conductivity distribution based on the measurements.
+% 
+% Note that in this example, the inverse crime is commited! That is, the
+% same model (specifically, the same mesh as well) is used both for
+% simulating the data and as the forward model while solving the inverse
+% problem. For brief reasoning why it is bad, see the OOEIT article.
+clear all;
+close all;
 
-%% Create simulated data
-disp('Creating simulated data');
+initialize_OOEIT();%Make sure all the relevant paths are added to the search path
 
-simuname = 'simplesimu';
-nel = 32;
-vincl = true(nel,nel);
-vincl = vincl(:);
+%Start by loading one of the predefined meshes
+load('meshfiles/Mesh2D_dense.mat');
+%And create a mesh-object from the loaded variables g, H and elfaces
+mesh = ForwardMesh1st(g, H, elfaces);
 
-load_data = 0;%Do we run the simulation or just load the data.
-if load_data
-    load([simuname 'data.mat']);
-    disp(['Loaded simulated data from file ' simuname 'data.mat']);
-else
-    load('meshfiles/KIT_mesh_dense.mat');%Load mesh variables
-    ginvsimu = ginv(:,1:2);
-    Hinvsimu = Hinv;
-    g1stsimu = g;
-    H1stsimu = H;
-    elfaces1stsimu = elfaces1st;
-    sigmasimu = GenerateEllipseInGrid(ginvsimu, Hinvsimu, 1, 10, 4e-2, 3e-2, 5e-2, 0e-2, 1e-2, 1);%Generate a single blob as a target
-    z = 1e-9*ones(nel,1);
-    fmsimu = ForwardMesh1st(g1stsimu, H1stsimu, elfaces1stsimu);
-    imesh.g = ginvsimu;
-    imesh.H = Hinvsimu;
-    fmsimu.SetInverseMesh(imesh);
-    [Umeas, Imeas] = Simulation(fmsimu, [], sigmasimu, z, [], 'potential', [0 0 0 0]);
-    save([simuname 'data.mat'], 'Umeas', 'Imeas', 'sigmasimu', 'z', 'ginvsimu', 'Hinvsimu');
-    disp(['simulation run succesfully, results saved in ' simuname 'data.mat']);
-end
+%Next, initialize the forward problem solver (FPS). This is the object, that
+%(utilizing the mesh-object given to it) computes forward problem solutions
+%using the FEM approximation of the complete electrode model (CEM).
+solver = EITFEM(mesh);
 
-%% Load meshes for inverse problem
-%Load meshes for solving the inverse problem, i.e. a 3D forward mesh and a
-%2D inverse mesh.
-load('meshfiles/KIT_mesh.mat');
-ginv = ginv(:,1:2);
-g1st = g;
-H1st = H;
-fm = ForwardMesh1st(g1st, H1st, elfaces1st);
-imesh.g = ginv;
-imesh.H = Hinv;
-fm.SetInverseMesh(imesh);
-disp('meshfiles loaded');
-
-
-%% Setting up the inverse solver
-
-%Set up the forward problem solver:
-solver = EITFEM(fm);
-solver.sigmamin = 1e-9;
-solver.zeta = 1e-9*ones(nel,1);
+%The FPS options can be set by simple assignments. As an example, let us
+%change the injection mode to potential injection. If you want to use
+%current injection, it is used as default, and you can just comment this
+%line out.
 solver.mode = 'potential';
-solver.vincl = vincl;
+
+%Next, let us create the target. This auxiliary function creates a
+%conductivity distribution featuring a single ellipse on a homogeneous
+%background
+sigma = GenerateEllipse(g, 1, 10, 3e-2, 4e-2, 3e-2, 0, 1e-2);
+
+%Then we can compute the forward problem, which means simulating the
+%measurements, by the following line (note that if
+% solver.mode == 'current', the solution is the potentials, and if
+% solver.mode == 'potential', the solution is the currents.)
+Imeas = solver.SolveForwardVec(sigma);
+
+%For the inverse problem solution, regularization is required, and it is
+%implement in the form of priors. Let us next initialize a total variation
+%(TV) prior. There is no hard-coded limit for the number of priors you can
+%use simultaneously, and often it is desirable to have, for example, at
+%least a positivity constraint (e.g. PriorPositivityParabolic) added as well.
+TVPrior = PriorTotalVariation(g, H, 3);
+
+%To initialize the inverse problem solver (or inverse solver, for short), 
+%we need a cell array containing our optimized functionals, i.e. the FPS
+%and the priors.
+ofuns = {solver; TVPrior};
+%Then initialize the inverse problem solver
+invSolver = SolverGN(ofuns);
+
+%The inverse solver has also many tunable parameters, which may be
+%mdified by simply assigning new values; here we decrease the maximum
+%number of iteration inside linesearch:
+invSolver.maxIterInLine = 15;
+
+%To plot the estimate, we initialize a plotter class, and assign it to the
+%inverse solver
+plotter = Plotter(g, H);
+invSolver.Plotter = plotter;
+
+%You can plot the true sigma using the plotter class by calling:
+%plotter.plot(sigma);
+
+%Before starting to solve the inverse problem, make sure that the
+%measurement data has been given to the FPS. Furthermore, if you change the
+%solver mode to current injection, the measurement data has to be passed to
+%solver.Uel, as the measurements will then be the electrode potentials.
 solver.Iel = Imeas;
-solver.Uel = Umeas;
-solver.SetInvGamma(1e-3, 3e-2);
-disp('Forward problem solver set up')
 
-%Set up the Total Variation prior:
-%Start by calculating the value for alpha based on Gerardos method
-ec = 10;%expected change
-TVPrior = PriorTotalVariation(ginv, Hinv, ec);
-disp('TV prior set up');
-
-%Set up the smoothness prior:%Uncomment and give this object to InvSolver if you want to use this
-%SmoothPrior = PriorSmoothness(ginv, 0.05, 1, ones(size(ginv,1),1));
-%disp('Smoothness prior set up');
-
-%Set up the positivity prior:
-PosiPrior = PriorPositivityParabolic(1e-5, 100);
-disp('Positivity prior set up');
-
-%Set up the plotter:
-plotter = Plotter(ginv, Hinv);
-
-%Finally, set up the inverse problem solver, in this case GN with
-%linesearch:
-resobj = cell(3, 1);
-resobj{1} = solver;
-resobj{2} = TVPrior;
-resobj{3} = PosiPrior;
-InvSolver = SolverLinesearch(resobj);
-InvSolver.maxIter = 100;
-InvSolver.Plotter = plotter;
-InvSolver.plotUQ = 1;
-
-%Make the initial guess and start solving!
-sigmainitial = ones(size(ginv,1),1);
-disp('All set! Beginning to solve the inverse problem.')
-reco = InvSolver.solve(sigmainitial);
-
+%Make an initial guess
+sigmainitial = ones(size(g,1),1);
+%And start solving the inverse problem.
+reconstruction = invSolver.solve(sigmainitial);
+%The result will be a vector of
+%conductivity values at the node points of the mesh, and can be plotted
+%using the same plotter class given to the inverse solver by calling
+%plotter.plot(reconstruction);
 
