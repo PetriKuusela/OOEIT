@@ -7,7 +7,7 @@ classdef PriorSmoothness < handle
     
     
     properties
-        invcov  %The inverse of the covariance matrix
+        invCov  %The inverse of the covariance matrix
         mean    %The expectation value of the estimate (can be a single value or a vector with same length as ginv)
         L       %chol(invcov), used only to draw samples from the prior
         regularization_c %A regularization constant to make sure the covariance matrix is not poorly conditioned
@@ -29,7 +29,7 @@ classdef PriorSmoothness < handle
             obj.common_c = 1e-1;
             obj.SetCovMat(ginv, corlen, var);
             obj.mean = mean;
-            obj.L = chol(obj.invcov);
+            obj.L = chol(obj.invCov);
         end
         
         function SetCovMat(self, g, corlen, var)
@@ -52,21 +52,21 @@ classdef PriorSmoothness < handle
             end
             cov = a*exp(-0.5*((xmat-xmat').^2+(ymat-ymat').^2+(zmat-zmat').^2)/b^2);
             cov = cov + diag(c(1)*ones(size(cov,1),1)) + self.common_c*var(1)*ones(size(cov,1));
-            self.invcov = inv(cov);
+            self.invCov = inv(cov);
         end
         
         function res = OptimizationFunction(self, sigest)
             %This function is called by the inverse problem solver, and it
             %gives the function value to be minimized.
-            res = 0.5*(sigest-self.mean)'*self.invcov*(sigest-self.mean);
+            res = 0.5*(sigest-self.mean)'*self.invCov*(sigest-self.mean);
         end
         
         function [Hess, grad] = GetHessAndGrad(self, sigest)
             %This function is called by the inverse problem solver, and it
             %gives the Hess-matrix and gradient of the optimization
             %function.
-            grad = self.invcov*(sigest-self.mean);
-            Hess = self.invcov;
+            grad = self.invCov*(sigest-self.mean);
+            Hess = self.invCov;
         end
 
         function samples = DrawSamples(self, n)

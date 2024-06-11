@@ -6,7 +6,7 @@ classdef HomogeneousWrapper < handle
     
     properties
         solver  %This is the EITFEM object to be wrapped
-        estind  %in case of multiple estimates, which index to homogenize
+        estInd  %in case of multiple estimates, which index to homogenize
         ng      %The number of nodes in the inverse mesh
     end
     
@@ -16,35 +16,38 @@ classdef HomogeneousWrapper < handle
             %Class constructor. Input argument is the solver to be wrapped.
             obj.solver = solver;
             obj.ng = solver.fmesh.ng;
-            obj.estind = 1;
+            obj.estInd = 1;
         end
+        
         function vec = SolveForwardVec(self, hest)
-            if isa(hest, 'Estimate_vec')
-                hest.estimates{self.estind} = hest.estimates{self.estind}*ones(self.ng,1);
+            if isa(hest, 'EstimateVec')
+                hest.estimates{self.estInd} = hest.estimates{self.estInd}*ones(self.ng,1);
                 vec = self.solver.SolveForwardVec(hest);
             else
                 vec = self.solver.SolveForwardVec(hest*ones(self.ng,1));
             end
         end
+        
         function res = OptimizationFunction(self,hest)
-            if isa(hest, 'Estimate_vec')
-                hest.estimates{self.estind} = hest.estimates{self.estind}*ones(self.ng,1);
+            if isa(hest, 'EstimateVec')
+                hest.estimates{self.estInd} = hest.estimates{self.estInd}*ones(self.ng,1);
                 res = self.solver.OptimizationFunction(hest);
             else
                 res = self.solver.OptimizationFunction(hest*ones(self.ng,1));
             end
         end
+        
         function [Hess, grad] = GetHessAndGrad(self,hest)
-            if isa(hest, 'Estimate_vec')
-                hest.estimates{self.estind} = hest.estimates{self.estind}*ones(self.ng,1);
+            if isa(hest, 'EstimateVec')
+                hest.estimates{self.estInd} = hest.estimates{self.estInd}*ones(self.ng,1);
                 [Hess, grad] = self.solver.GetHessAndGrad(hest);
-                grad.estimates{self.estind} = sum(grad.estimates{self.estind});
-                Hess.estimates{self.estind,self.estind} = sum(sum(Hess.estimates{self.estind, self.estind}));
+                grad.estimates{self.estInd} = sum(grad.estimates{self.estInd});
+                Hess.estimates{self.estInd,self.estInd} = sum(sum(Hess.estimates{self.estInd, self.estInd}));
                 for ii = 1:length(grad.estimates)
-                    if ii < self.estind
-                        Hess.estimates{ii, self.estind} = sum(Hess.estimates{ii,self.estind}, 2);
-                    elseif ii > self.estind
-                        Hess.estimates{self.estind, ii} = sum(Hess.estimates{self.estind,ii}, 1);
+                    if ii < self.estInd
+                        Hess.estimates{ii, self.estInd} = sum(Hess.estimates{ii,self.estInd}, 2);
+                    elseif ii > self.estInd
+                        Hess.estimates{self.estInd, ii} = sum(Hess.estimates{self.estInd,ii}, 1);
                     end
                 end
             else
@@ -53,11 +56,12 @@ classdef HomogeneousWrapper < handle
                 Hess = sum(sum(Hess(1:end/2,1:end/2)));
             end
         end
+        
         function Plot(self,hest)
             %This can be used to plot the fitting of the data during the
             %solving of the homogeneous estimate.
-            if isa(hest, 'Estimate_vec')
-                hest.estimates{self.estind} = hest.estimates{self.estind}*ones(self.ng,1);
+            if isa(hest, 'EstimateVec')
+                hest.estimates{self.estInd} = hest.estimates{self.estInd}*ones(self.ng,1);
                 self.solver.Plot(hest);
             else
                 self.solver.Plot(hest*ones(self.ng,1));

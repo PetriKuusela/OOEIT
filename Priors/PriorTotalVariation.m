@@ -13,8 +13,8 @@ classdef PriorTotalVariation < handle
         ng          %Number of nodes
         alpha       %The "strength" coefficient of TV
         beta        %The smoothing parameter
-        Areas       %A vector containing the area of each element
-        sigmaind
+        areas       %A vector containing the area of each element
+        sigmaInd    %An array specifying which elements of EstimateVec should be taken into account
     end
     
     methods
@@ -44,26 +44,26 @@ classdef PriorTotalVariation < handle
             tvp = 0.975;
             obj.alpha = -ef.*log(1-tvp)./(mesh_a*egrad);
             obj.beta = beta;
-            obj.sigmaind = 1;
+            obj.sigmaInd = 1;
             
             obj.ng = size(g, 1);
             obj.nH = size(H, 1);
-            [obj.gradphi, obj.Areas] = obj.ComputeGrads2D(g,H);
+            [obj.gradphi, obj.areas] = obj.ComputeGrads2D(g,H);
             
         end
         
         function res = OptimizationFunction(self, est)
             %This is the function called by the inverse problem solver to
             %get the value of the function which is to be minimized.
-            if isa(est, 'Estimate_vec')
+            if isa(est, 'EstimateVec')
                 res = 0;
-                for ii = 1:length(self.sigmaind)
-                    gradsigma = self.ComputeGrads(est.estimates{self.sigmaind(ii)});
-                    res = res + self.alpha(ii)*sum(self.Areas.*sqrt(sum(abs(gradsigma).^2, 2)+self.beta));
+                for ii = 1:length(self.sigmaInd)
+                    gradsigma = self.ComputeGrads(est.estimates{self.sigmaInd(ii)});
+                    res = res + self.alpha(ii)*sum(self.areas.*sqrt(sum(abs(gradsigma).^2, 2)+self.beta));
                 end
             else
                 gradsigma = self.ComputeGrads(est);
-                res = self.alpha*sum(self.Areas.*sqrt(sum(abs(gradsigma).^2, 2)+self.beta));
+                res = self.alpha*sum(self.areas.*sqrt(sum(abs(gradsigma).^2, 2)+self.beta));
             end
         end
         
@@ -72,18 +72,18 @@ classdef PriorTotalVariation < handle
             %function. This function is called by the inverse problem
             %solver.
 
-            if isa(est, 'Estimate_vec')
+            if isa(est, 'EstimateVec')
                 HC = cell(length(est.estimates));
                 gC = cell(length(est.estimates),1);
             end
             
-            for io = 1:length(self.sigmaind)
+            for io = 1:length(self.sigmaInd)
                 grad = zeros(self.ng,1);%initialize arrays for gradient and Hess-matrix
                 Hvals = zeros(9*self.nH,1);%Hess matrix is collected in sparse form
                 HindsI = zeros(9*self.nH,1);
                 HindsJ = zeros(9*self.nH,1);
-                if isa(est, 'Estimate_vec')
-                    gradsigma = self.ComputeGrads(est.estimates{self.sigmaind(io)});
+                if isa(est, 'EstimateVec')
+                    gradsigma = self.ComputeGrads(est.estimates{self.sigmaInd(io)});
                 else
                     gradsigma = self.ComputeGrads(est);
                 end
@@ -96,7 +96,7 @@ classdef PriorTotalVariation < handle
                     tdsigma = gradsigma(ii,:);%The gradient of sigma in element ii
                     gnorm = 1/sqrt(sum(tdsigma.^2) + self.beta);%1/sqrt part of the gradient
                     tdot = tdgrads*tdsigma';%The dot product of gradients of basis functions and gradient of sigma
-                    grad(tinds) = grad(tinds) + self.alpha(io)*gnorm.*tdot.*self.Areas(ii);%Add the terms to the relevant gradient elements
+                    grad(tinds) = grad(tinds) + self.alpha(io)*gnorm.*tdot.*self.areas(ii);%Add the terms to the relevant gradient elements
                 end
 
                 %This block calculates the Hess-matrix of the TV functional
@@ -113,7 +113,7 @@ classdef PriorTotalVariation < handle
                             phij = tdgrads(kk,:);%grad? of basis function_j
                             f = phii*phij'*gnorm;
                             h = -(tdsigma*phii'*gnorm2*tdsigma*phij');
-                            Hvals(II) = self.alpha(io)*(f + h).*self.Areas(ii);
+                            Hvals(II) = self.alpha(io)*(f + h).*self.areas(ii);
                             HindsI(II) = tinds(jj);
                             HindsJ(II) = tinds(kk);
                             II = II + 1;
@@ -121,18 +121,18 @@ classdef PriorTotalVariation < handle
                     end
                 end
 
-                if isa(est, 'Estimate_vec')
-                    HC{self.sigmaind(io), self.sigmaind(io)} = accumarray([HindsI HindsJ], Hvals);
-                    gC{self.sigmaind(io)} = grad;
+                if isa(est, 'EstimateVec')
+                    HC{self.sigmaInd(io), self.sigmaInd(io)} = accumarray([HindsI HindsJ], Hvals);
+                    gC{self.sigmaInd(io)} = grad;
                 else
                     Hess = accumarray([HindsI HindsJ], Hvals);
                 end
 
             end
 
-            if isa(est,'Estimate_vec')
-                Hess = Estimate_Hess(HC);
-                grad = Estimate_vec(gC);
+            if isa(est,'EstimateVec')
+                Hess = EstimateHess(HC);
+                grad = EstimateVec(gC);
             end
             
         end

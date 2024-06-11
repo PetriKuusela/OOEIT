@@ -12,11 +12,11 @@ classdef ForwardMesh2nd < handle
         
         g   %the node points (an n x m array, each row containing one point)
         ng  %number of nodes
-        gdim%dimension of the mesh
+        gDim%dimension of the mesh
         H   %the connectivity matrix (each row contains node indices (row number of g) that are in a single element
         nH  %number of elements
         E   %Electrode surface elements, nel x 1 cell array, each cell n x gdim array, indices refer to rows in g
-        nel %number of electrodes in the system
+        nEl %number of electrodes in the system
         EC  %Element connections; each row i contains all elements (rows of H) such that contain node i.
         itof%inverse-to-forward mesh transform matrix (1 if no inverse mesh is specified.)
         nginv%number of nodes in the inverse mesh
@@ -30,11 +30,11 @@ classdef ForwardMesh2nd < handle
             obj.g = g;
             obj.H = H;
             obj.E = E;
-            obj.gdim = size(g,2);
+            obj.gDim = size(g,2);
             
             obj.ng = size(g,1);
             obj.nH = size(H,1);
-            obj.nel = length(E);
+            obj.nEl = length(E);
             obj.SetEC();
             obj.itof = 1;
             
@@ -55,9 +55,9 @@ classdef ForwardMesh2nd < handle
             sigma = self.itof*sigma;
 
             k = 1;  
-            if self.gdim == 2
+            if self.gDim == 2
                 nphi = 6;
-            elseif self.gdim == 3
+            elseif self.gDim == 3
                 nphi = 10;
             end
             Arow = zeros(nphi*self.nH,nphi);
@@ -65,20 +65,20 @@ classdef ForwardMesh2nd < handle
             Aval = zeros(nphi*self.nH,nphi);
 
             % Gauss quadrature points and weights
-            if self.gdim == 3
+            if self.gDim == 3
                 a=0.58541020;b=0.13819660;
                 ip=[b b b;a b b;b a b;b b a];
-            elseif self.gdim == 2
+            elseif self.gDim == 2
                 ip=[0.5 0; 0.5 0.5; 0 0.5];
             end
 
             L = cell(size(ip,1),1);
             for ii = 1:size(ip,1)
-                if self.gdim == 3
+                if self.gDim == 3
                     L{ii}= [4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 4*ip(ii,1)-1 0 0 -8*ip(ii,1)+4-4*ip(ii,2)-4*ip(ii,3) 4*ip(ii,2) -4*ip(ii,2) -4*ip(ii,3) 4*ip(ii,3) 0;
                             4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 0 4*ip(ii,2)-1 0 -4*ip(ii,1) 4*ip(ii,1) -8*ip(ii,2)+4-4*ip(ii,1)-4*ip(ii,3) -4*ip(ii,3) 0 4*ip(ii,3);
                             4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 0 0 4*ip(ii,3)-1 -4*ip(ii,1) 0 -4*ip(ii,2) -8*ip(ii,3)+4-4*ip(ii,1)-4*ip(ii,2) 4*ip(ii,1) 4*ip(ii,2)];
-                elseif self.gdim == 2
+                elseif self.gDim == 2
                     L{ii} = error;
                 end
             end
@@ -86,7 +86,7 @@ classdef ForwardMesh2nd < handle
               % Go through all triangles/tetrahedra
               ind = self.H(ii,:);
               gg = self.g(ind,:);
-              ss = sigma(ind(1:self.gdim+1));
+              ss = sigma(ind(1:self.gDim+1));
               int = self.intLinSigma(gg,ss,ip,L);
               Arow(k:k+nphi-1,:) = repmat(ind', 1, nphi);
               Acol(k:k+nphi-1,:) = repmat(ind, nphi, 1);
@@ -95,7 +95,7 @@ classdef ForwardMesh2nd < handle
               k = k + nphi;
             end  
             
-            A = sparse(Arow,Acol,Aval,self.ng+self.nel-1,self.ng+self.nel-1);
+            A = sparse(Arow,Acol,Aval,self.ng+self.nEl-1,self.ng+self.nEl-1);
 
             
         end
@@ -107,22 +107,22 @@ classdef ForwardMesh2nd < handle
             %M contains integral phi_i on surface of electrode j
             %B contains the electrode areas in its elements.
 
-            B = zeros(self.nel,1);
+            B = zeros(self.nEl,1);
 
-            M = zeros(self.ng, self.nel);
+            M = zeros(self.ng, self.nEl);
 
-            S = cell(self.nel,1);
+            S = cell(self.nEl,1);
 
-            if self.gdim == 2
+            if self.gDim == 2
                 nphi = 3;
-            elseif self.gdim == 3
+            elseif self.gDim == 3
                 nphi = 6;
             end
             % Loop through electrodes
-            for ii=1:self.nel
+            for ii=1:self.nEl
               spos = 1;
               faces = self.E{ii};
-              len = self.gdim*size(self.E{ii},1);
+              len = self.gDim*size(self.E{ii},1);
               intS = zeros(len,nphi);
               rowS = zeros(len,nphi);
               colS = zeros(len,nphi);
@@ -134,10 +134,10 @@ classdef ForwardMesh2nd < handle
                 gg = self.g(ind,:);
                 rcidx = repmat(ind, nnodes, 1);
 
-                if self.gdim == 3
+                if self.gDim == 3
                     bb1 = self.triang1(gg);
                     bb2 = self.triang2(gg);
-                elseif self.gdim == 2
+                elseif self.gDim == 2
                     error('2nd order 2D mesh not yet supported')
                     bb1 = self.phii1D(gg);
                     bb2 = self.phiiphij1D(gg);
@@ -149,9 +149,9 @@ classdef ForwardMesh2nd < handle
 
                 M(ind,ii) = M(ind,ii) + bb1;
 
-                if self.gdim == 3
+                if self.gDim == 3
                     B(ii,:)  = B(ii,:) + self.elektro(gg);
-                elseif self.gdim == 2
+                elseif self.gDim == 2
                     B(ii,:)  = B(ii,:) + self.ElectrodeArea1D(gg);
                 end
 
@@ -165,9 +165,9 @@ classdef ForwardMesh2nd < handle
         function [Ai, Av] = GradientMatrix(self)
             %Computes all the basis function gradients of the 1st order
             %mesh to be used in calculating the Jacobian.
-            ar = zeros(self.ng*12,self.gdim+1);
-            ac = zeros(self.ng*12,self.gdim+1);
-            av = zeros(self.ng*12,self.gdim+1);
+            ar = zeros(self.ng*12,self.gDim+1);
+            ac = zeros(self.ng*12,self.gDim+1);
+            av = zeros(self.ng*12,self.gDim+1);
 
             Ai = cell(self.ng,1);
             Av = cell(self.ng,1);
@@ -179,29 +179,29 @@ classdef ForwardMesh2nd < handle
 
               rid = 1;
               for ii=1:length(El)
-                ind = self.H(El(ii),1:self.gdim+1); % Indices of the element
+                ind = self.H(El(ii),1:self.gDim+1); % Indices of the element
                 gg=self.g(ind,:);
 
-                idc = repmat(ind,self.gdim+1,1);
+                idc = repmat(ind,self.gDim+1,1);
                 idr = idc';
                 
-                L=[-ones(self.gdim,1) eye(self.gdim)];
+                L=[-ones(self.gDim,1) eye(self.gDim)];
                 Jt=L*gg;
                 dJt=abs(det(Jt)); % Tetrahedra volume
                 G=Jt\L; % Gradients of each basis function
                 GdJt=G'*G*dJt;
 
-                if self.gdim == 3
+                if self.gDim == 3
                     int=1/24*GdJt;
-                elseif self.gdim == 2
+                elseif self.gDim == 2
                     int=1/6*GdJt;
                 end
 
                 % temporary storage
-                ar(rid:rid+self.gdim,:) = idr;
-                ac(rid:rid+self.gdim,:) = idc;
-                av(rid:rid+self.gdim,:) = int;
-                rid = rid + 1 + self.gdim;      
+                ar(rid:rid+self.gDim,:) = idr;
+                ac(rid:rid+self.gDim,:) = idc;
+                av(rid:rid+self.gDim,:) = int;
+                rid = rid + 1 + self.gDim;      
               end     
               I = 1:(rid-1);
 
@@ -251,7 +251,7 @@ classdef ForwardMesh2nd < handle
                 iJt = inv(Jt);
                 dJt = abs(det(Jt));
                 G = iJt*L{ii};
-                GdJt = G'*G*dJt/factorial(self.gdim+1);
+                GdJt = G'*G*dJt/factorial(self.gDim+1);
                 int = int + S(ii)*GdJt;
             end
 

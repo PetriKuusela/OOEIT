@@ -1,6 +1,11 @@
-function [sigma] = GenerateEllipse(g,sigma_out,sigma_in,width_x,width_y,...
+function nodeVals = GenerateEllipse(g,backgroundVal,inclusionVal,width_x,width_y,...
 cp_x,cp_y,band)
-%This function is used to generate targets for simulations
+%This function is used to generate targets for simulations. It creates a
+%distribution with homogeneous background with value backgroundVal, and a
+%single elliptic inclusion with value inclusionVal. The ellipse has width
+%and height defined by width_x and width_y, respectively, and centerpoint
+%defined by cp_x and cp_y. band defines how wide the transition zone from
+%inclusion to the background is.
 
 if width_x > width_y
     maxdist = width_x;
@@ -22,9 +27,9 @@ inell = dist < 2*maxdist;
 outell = dist > 2*maxdist + 2*band;
 inband = ~inell & ~outell;
 
-sigma = zeros(size(g,1),1);
-sigma(inell) = sigma_in;
-sigma(outell) = sigma_out;
+nodeVals = zeros(size(g,1),1);
+nodeVals(inell) = inclusionVal;
+nodeVals(outell) = backgroundVal;
 t = (dist(inband)-2*maxdist)/(2*band);
-sigma(inband) = sigma_out*t + sigma_in*(1-t);
+nodeVals(inband) = backgroundVal*t + inclusionVal*(1-t);
 

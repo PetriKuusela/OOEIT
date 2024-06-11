@@ -2,7 +2,7 @@ close all; clear all; clc
 %This is the main-script for a simple traditional watertank EIT
 %simulation WITH inverse crime demonstrating using the second order mesh.
 
-initialize_OOEIT();%Make sure all the relevant paths are added
+InitializeOOEIT();%Make sure all the relevant paths are added
 
 %% Create simulated data
 disp('Creating simulated data');
@@ -17,7 +17,7 @@ if load_data
     load([simuname 'data.mat']);
     disp(['Loaded simulated data from file ' simuname 'data.mat']);
 else
-    load('meshfiles/watertankmesh2nd.mat');%Load mesh variables
+    load('meshfiles/watertank_mesh_2nd.mat');%Load mesh variables
     ginvsimu = ginv(:,1:2);%The node coordinates of the inverse mesh (a 1st order mesh where the conductivity is defined)
     Hinvsimu = Hinv;%The element connectivity of the inverse mesh
     gsimu = g;%The node coordinates of the forward mesh (a 2nd order mesh)
@@ -38,7 +38,7 @@ end
 %Load meshes for solving the inverse problem, i.e. a 3D 2nd order forward mesh and a
 %2D inverse mesh. (Here a same mesh is used as in simulations, i.e. inverse
 %crime is committed)
-load('meshfiles/watertankmesh2nd.mat');
+load('meshfiles/watertank_mesh_2nd.mat');
 ginv = ginv(:,1:2);
 fm = ForwardMesh2nd(g, H, elfaces);
 imesh.g = ginv;
@@ -51,7 +51,7 @@ disp('meshfiles loaded');
 
 %Set up the forward problem solver:
 solver = EITFEM(fm);
-solver.vincl = vincl;
+solver.mIncl = vincl;
 solver.Iel = Imeas;
 solver.Uel = Umeas;
 solver.SetInvGamma(1e-3, 3e-2);
@@ -79,13 +79,13 @@ resobj = cell(3, 1);
 resobj{1} = solver;
 resobj{2} = TVPrior;
 resobj{3} = PosiPrior;
-InvSolver = SolverGN(resobj);
-InvSolver.maxIter = 100;
-InvSolver.Plotter = plotter;
+invSolver = SolverGN(resobj);
+invSolver.maxIter = 100;
+invSolver.plotter = plotter;
 
 %Make the initial guess and start solving!
 sigmainitial = ones(size(ginv,1),1);
 disp('All set! Beginning to solve the inverse problem.')
-reco = InvSolver.solve(sigmainitial);
+reco = invSolver.Solve(sigmainitial);
 
 

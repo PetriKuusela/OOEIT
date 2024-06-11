@@ -14,11 +14,11 @@ classdef ForwardMesh1st < handle
         
         g   %the node points (an n x m array, n = number of nodes, m = dimension of the mesh, each row contains coordinates of one point)
         ng  %number of nodes
-        gdim%dimension of the mesh
+        gDim%dimension of the mesh
         H   %the connectivity matrix (each row contains node indices (row number of g) that are in a single element)
         nH  %number of elements
         E   %Electrode surface elements, nel x 1 cell array, each cell n x gdim array (n = number of surface elements in that electrode), indices refer to rows in g
-        nel %number of electrodes in the system
+        nEl %number of electrodes in the system
         EC  %Element connections; each row i contains all elements (rows of H) that contain node i.
         itof%inverse-to-forward mesh transform matrix (1 if no inverse mesh is specified.)
         nginv%number of nodes in the inverse mesh (if no inverse mesh is specified, it is the same as the forward mesh)
@@ -35,13 +35,13 @@ classdef ForwardMesh1st < handle
             obj.H = H;
             obj.E = E;
 
-            obj.gdim = size(g,2);
+            obj.gDim = size(g,2);
             obj.ng = size(g,1);
             obj.nH = size(H,1);
-            obj.nel = length(E);
-            obj.SetEC();
-            obj.itof = 1;
-            obj.nginv = obj.ng;
+            obj.nEl = length(E);
+            obj.SetEC();%Make the element connections-array, i.e. for each node, check which elements its connected to
+            obj.itof = 1;%Initial assumption: no separate inverse mesh.
+            obj.nginv = obj.ng;%No separate inverse mesh, so inverse mesh has same number of nodes as the forward mesh
             
         end
         
@@ -75,20 +75,20 @@ classdef ForwardMesh1st < handle
             %values are stored in row/column/value format and stored in a
             %sparse matrix in the end
             k = 1;  
-            Arow = zeros((self.gdim+1)*self.nH,(self.gdim+1));
-            Acol = zeros((self.gdim+1)*self.nH,(self.gdim+1));
-            Aval = zeros((self.gdim+1)*self.nH,(self.gdim+1));
+            Arow = zeros((self.gDim+1)*self.nH,(self.gDim+1));
+            Acol = zeros((self.gDim+1)*self.nH,(self.gDim+1));
+            Aval = zeros((self.gDim+1)*self.nH,(self.gDim+1));
 
             % Gauss quadrature points for integration
-            if self.gdim == 3
+            if self.gDim == 3
                 a=0.58541020;b=0.13819660;
                 ip=[b b b;a b b;b a b;b b a];
-            elseif self.gdim == 2
+            elseif self.gDim == 2
                 ip=[0.5 0; 0.5 0.5; 0 0.5];
             end
 
             % difference matrix of the (linear) basis functions
-            L = [-ones(self.gdim,1) eye(self.gdim)];
+            L = [-ones(self.gDim,1) eye(self.gDim)];
             for ii=1:self.nH
               % Go through all triangles/tetrahedra
               ind = self.H(ii,:); %The indices of the nodes in element ii
@@ -96,20 +96,20 @@ classdef ForwardMesh1st < handle
               ss = sigma(ind);    %The conductivities at the nodes in ind
 
               %Integral of sigma*grad(phi_i) dot grad(phi_j) inside element ii:
-              int = self.intLinSigma(gg,ss,ip,L); 
+              int = self.IntLinSigma(gg,ss,ip,L); 
               %int is now a 3-by-3 or 4-by-4 matrix, with element i,j
               %containing the said integral with the basisfunctions phi_i
               %and phi_j being the basis functions of nodes ind(i) and
               %ind(j).
-              Arow(k:k+self.gdim,:) = repmat(ind', 1, self.gdim+1);%the row indices of the int-values in the final sparse matrix to be constructed
-              Acol(k:k+self.gdim,:) = repmat(ind, self.gdim+1, 1);%the column indices of the int-values in the final sparse matrix to be constructed
-              Aval(k:k+self.gdim,:) = int; %the integral values
+              Arow(k:k+self.gDim,:) = repmat(ind', 1, self.gDim+1);%the row indices of the int-values in the final sparse matrix to be constructed
+              Acol(k:k+self.gDim,:) = repmat(ind, self.gDim+1, 1);%the column indices of the int-values in the final sparse matrix to be constructed
+              Aval(k:k+self.gDim,:) = int; %the integral values
 
-              k = k + self.gdim + 1;
+              k = k + self.gDim + 1;
             end  
             
             %The output:
-            A = sparse(Arow,Acol,Aval,self.ng+self.nel-1,self.ng+self.nel-1);
+            A = sparse(Arow,Acol,Aval,self.ng+self.nEl-1,self.ng+self.nEl-1);
 
             
         end
@@ -121,47 +121,47 @@ classdef ForwardMesh1st < handle
             %M contains integral phi_i on surface of electrode j
             %B contains the electrode areas in its elements.
 
-            B = zeros(self.nel,1);
+            B = zeros(self.nEl,1);
             %Shouldn't this be sparse?
-            M = zeros(self.ng, self.nel);
-            S = cell(self.nel,1);
+            M = zeros(self.ng, self.nEl);
+            S = cell(self.nEl,1);
 
             % Loop through electrodes
-            for ii=1:self.nel
+            for ii=1:self.nEl
               spos = 1;%index for storing values for matrix in cell array S
               faces = self.E{ii};%the boundary elements of electrode ii
-              len = self.gdim*size(self.E{ii},1);%The number of rows in the matrices for collecting values for S-matrix
-              intS = zeros(len,self.gdim);
-              rowS = zeros(len,self.gdim);
-              colS = zeros(len,self.gdim); %These three matrices contain the information for making the sparse matrix
+              len = self.gDim*size(self.E{ii},1);%The number of rows in the matrices for collecting values for S-matrix
+              intS = zeros(len,self.gDim);
+              rowS = zeros(len,self.gDim);
+              colS = zeros(len,self.gDim); %These three matrices contain the information for making the sparse matrix
               % Loop through faces on electrode ii
               for jj = 1:size(faces,1)
                 ind = faces(jj,:); % face nodes
                 gg = self.g(ind,:);% the coordinates of the nodes
-                rcidx = repmat(ind, self.gdim, 1);
+                rcidx = repmat(ind, self.gDim, 1);
 
                 %The following compute integrals of phi_i * phi_j (in bb2) 
                 %and phi_i (in bb1) inside the boundary element jj
-                if self.gdim == 3
-                    [bb1, bb2] = self.phiiphij2D(gg);
-                elseif self.gdim == 2
-                    [bb1, bb2] = self.phiiphij1D(gg);
+                if self.gDim == 3
+                    [bb1, bb2] = self.PhiiPhij2D(gg);
+                elseif self.gDim == 2
+                    [bb1, bb2] = self.PhiiPhij1D(gg);
                 end
 
                 %Store the values
-                intS(spos:spos+self.gdim-1,:) = bb2;
-                rowS(spos:spos+self.gdim-1,:) = rcidx.'; 
-                colS(spos:spos+self.gdim-1,:) = rcidx;   
+                intS(spos:spos+self.gDim-1,:) = bb2;
+                rowS(spos:spos+self.gDim-1,:) = rcidx.'; 
+                colS(spos:spos+self.gDim-1,:) = rcidx;   
                 M(ind,ii) = M(ind,ii) + bb1;
 
                 %compute the element area
-                if self.gdim == 3
+                if self.gDim == 3
                     B(ii,:)  = B(ii,:) + self.ElementArea2D(gg);
-                elseif self.gdim == 2
+                elseif self.gDim == 2
                     B(ii,:)  = B(ii,:) + self.ElementArea1D(gg);
                 end
 
-                spos = spos + self.gdim;
+                spos = spos + self.gDim;
               end
               %All the elements of electrode ii have been gone through, so
               %next create the sparse matrix S{ii}
@@ -198,9 +198,9 @@ classdef ForwardMesh1st < handle
 
               %Initialize the matrices for collecting the indices and values
               %for creating a sparse matrix.
-              ar = zeros(length(El)*(self.gdim+1),self.gdim+1);
-              ac = zeros(length(El)*(self.gdim+1),self.gdim+1);
-              av = zeros(length(El)*(self.gdim+1),self.gdim+1);
+              ar = zeros(length(El)*(self.gDim+1),self.gDim+1);
+              ac = zeros(length(El)*(self.gDim+1),self.gDim+1);
+              av = zeros(length(El)*(self.gDim+1),self.gDim+1);
 
               %index for collecting values to the matrices
               rid = 1;
@@ -209,28 +209,28 @@ classdef ForwardMesh1st < handle
                 ind = self.H(El(ii),:); % Indices of the element
                 gg=self.g(ind,:);%the node coordinates
 
-                idc = repmat(ind,self.gdim+1,1);%The row and column indices of the values in the derivative matrix
+                idc = repmat(ind,self.gDim+1,1);%The row and column indices of the values in the derivative matrix
                 idr = idc';
                 
                 % difference matrix of the (linear) basis functions
-                L=[-ones(self.gdim,1) eye(self.gdim)];
+                L=[-ones(self.gDim,1) eye(self.gDim)];
                 Jt=L*gg;
                 dJt=abs(det(Jt)); % Triangle/tetrahedra volume
                 G=Jt\L; % Gradients of each basis function
                 GdJt=G'*G*dJt;
-                if self.gdim == 3
+                if self.gDim == 3
                     int=1/24*GdJt;
-                elseif self.gdim == 2
+                elseif self.gDim == 2
                     int=1/6*GdJt;
                 end
                 %now int contains integrals of grad(phi_i) dot grad(phi_j)
                 %for i and j in nodes in ind
 
                 % temporary storage
-                ar(rid:rid+self.gdim,:) = idr;
-                ac(rid:rid+self.gdim,:) = idc;
-                av(rid:rid+self.gdim,:) = int;
-                rid = rid + 1 + self.gdim;      
+                ar(rid:rid+self.gDim,:) = idr;
+                ac(rid:rid+self.gDim,:) = idc;
+                av(rid:rid+self.gDim,:) = int;
+                rid = rid + 1 + self.gDim;      
               end     
 
               %Create the sparse derivative matrix of the FEM matrix
@@ -245,7 +245,7 @@ classdef ForwardMesh1st < handle
             end
         end
         
-        function SetInverseMesh(self, imesh)
+        function SetInverseMesh(self, iMesh)
             %A separate mesh can be used for representing the conductivity.
             %Here we call that mesh an inverse mesh. In this mesh object
             %(which stores the mesh for FEM computations of the forward
@@ -261,14 +261,14 @@ classdef ForwardMesh1st < handle
             %the conductivity in the forward mesh basis by multiplication
             %self.itof*sigma_i, where sigma_i is the conductivity in the
             %inverse mesh basis.
-            if size(imesh.g,2) == 2%Check the dimension of the inverse mesh
-                self.itof = self.interpolatematrix2d(imesh.H, imesh.g, self.g(:,1:2));
-            elseif size(imesh.g,2) == 3
-                self.itof = self.interpolatematrix3d(imesh.H, imesh.g, self.g);
+            if size(iMesh.g,2) == 2%Check the dimension of the inverse mesh
+                self.itof = self.InterpolateMatrix2D(iMesh.H, iMesh.g, self.g(:,1:2));
+            elseif size(iMesh.g,2) == 3
+                self.itof = self.InterpolateMatrix3D(iMesh.H, iMesh.g, self.g);
             else
                 error(['Unfit second dimension of ginv: size(ginv,2) = ' num2str(size(ginv,2))]);
             end
-            self.nginv = size(imesh.g,1);
+            self.nginv = size(iMesh.g,1);
             
         end
         
@@ -293,7 +293,7 @@ classdef ForwardMesh1st < handle
             
         end
         
-        function int=intLinSigma(self,g,s,ip,L)
+        function int=IntLinSigma(self,g,s,ip,L)
             %This function computes integrals of
             %s*grad(phi_i) dot grad(phi_j), where phi_i and phi_j are the
             %basis functions of triangular element vertices with
@@ -309,7 +309,7 @@ classdef ForwardMesh1st < handle
             iJt = inv(Jt);
             dJt = abs(det(Jt));
             G = iJt*L;
-            GdJt = G'*G*dJt/factorial(self.gdim+1);
+            GdJt = G'*G*dJt/factorial(self.gDim+1);
             int = sum(sigma)*GdJt;
             %int is a 3-by-3 or 4-by-4 matrix whose element (i,j) is the
             %integral of s*grad(phi_i) dot grad(phi_j).
@@ -320,7 +320,7 @@ classdef ForwardMesh1st < handle
 
     methods(Static)
 
-        function [int1, int2] = phiiphij1D(g)
+        function [int1, int2] = PhiiPhij1D(g)
             %This function computes the 1D integrals of phi_i and
             %phi_i*phi_j on an element defined by the coordinates in g
             
@@ -333,7 +333,7 @@ classdef ForwardMesh1st < handle
 
         end
 
-        function [int1, int2] =phiiphij2D(g)
+        function [int1, int2] =PhiiPhij2D(g)
             %This function computes the 2D integrals of phi_i and
             %phi_i*phi_j on an element defined by the coordinates in g
             
@@ -356,7 +356,7 @@ classdef ForwardMesh1st < handle
             A = sqrt((g(1,1)-g(2,1))^2 + (g(1,2)-g(2,2))^2);
         end
 
-        function M = interpolatematrix2d(H,g,p)
+        function M = InterpolateMatrix2D(H,g,p)
             %Use this: https://mathworld.wolfram.com/TriangleInterior.html
             v0 = g(H(:,1),:);
             v1 = g(H(:,2),:) - v0;
@@ -408,7 +408,7 @@ classdef ForwardMesh1st < handle
             end
         end
         
-        function M = interpolatematrix3d(H,g,p)
+        function M = InterpolateMatrix3D(H,g,p)
             %Use this: http://steve.hollasch.net/cgindex/geometry/ptintet.html
             
             p1 = g(H(:,1),:);

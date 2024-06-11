@@ -3,6 +3,8 @@ close all; clear all; clc
 %simulation without inverse crime, computing the reconstruction using the
 %non-linear difference method.
 
+InitializeOOEIT();%Make sure all the relevant paths are added
+
 %% Create simulated data
 disp('Creating simulated data');
 
@@ -35,7 +37,7 @@ solver.Uel = Umeas_i;
 solver.SetInvGamma(1e-3, 3e-2);%Set the noise level (this affects how the difference of the forward model and measurements are weighed while optimizing)
 
 %Set up the forward problem solver, which uses the final state measurements
-solver_nld = EITFEM_NLD(fm);
+solver_nld = EITFEMNLD(fm);
 solver_nld.Iel = Imeas;
 solver_nld.Uel = Umeas;
 solver_nld.SetInvGamma(1e-3, 3e-2);
@@ -44,12 +46,12 @@ disp('Forward problem solver set up')
 %Set up the Total Variation prior:
 ec = 10;%expected change
 TVPrior = PriorTotalVariation(g, H, [ec; ec]);%here "ec" is duplicated, as the prior applies to both initial and final state conductivity
-TVPrior.sigmaind = [1; 2];%These are the indices (in the Estimate_vec) of the estimates this prior applies to (here both of the estimates)
+TVPrior.sigmaInd = [1; 2];%These are the indices (in the EstimateVec) of the estimates this prior applies to (here both of the estimates)
 disp('TV prior set up');
 
 %Set up the positivity prior:
 PosiPrior = PriorPositivityParabolic(1e-5, 100);
-PosiPrior.omitind = 2;%Tell the positivity prior that estimate number 2 is not to be penalized, as the change may be negative as well
+PosiPrior.omitInd = 2;%Tell the positivity prior that estimate number 2 is not to be penalized, as the change may be negative as well
 disp('Positivity prior set up');
 
 %Set up the plotter:
@@ -66,17 +68,17 @@ resobj{1} = solver;
 resobj{2} = solver_nld;
 resobj{3} = TVPrior;
 resobj{4} = PosiPrior;
-InvSolver = SolverGN(resobj);%Create the inverse solver object
-InvSolver.Plotter = ph;%Set the plotter of the inverse solver
+invSolver = SolverGN(resobj);%Create the inverse solver object
+invSolver.plotter = ph;%Set the plotter of the inverse solver
 
 %Make the initial guess and start solving!
 sigmainitial = ones(size(g,1),1);%initial guess for the initial state of the conductivity
 changeinitial = zeros(size(g,1),1);%initial guess for the change of conductivity
-%Use the Estimate_vec class when having multiple parameters (here initial
+%Use the EstimateVec class when having multiple parameters (here initial
 %conductivity and the change) to estimate:
-sigmainitial = Estimate_vec({sigmainitial; 0*sigmainitial});
+sigmainitial = EstimateVec({sigmainitial; 0*sigmainitial});
 
 disp('All set! Beginning to solve the inverse problem.')
-reco = InvSolver.solve(sigmainitial);%Start solving the inverse problem
+reco = invSolver.Solve(sigmainitial);%Start solving the inverse problem
 
 

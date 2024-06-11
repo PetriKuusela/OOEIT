@@ -1,7 +1,7 @@
 close all; clear all; clc;
 
 addpath('..');
-initialize_OOEIT();
+InitializeOOEIT();
 
 %% Load meshes for inverse problem
 %Load meshes for solving the inverse problem, i.e. a 3D forward mesh and a
@@ -23,7 +23,7 @@ disp('meshfiles loaded');
 
 %Set up the forward problem solver:
 solver = EITFEM(fm);
-solver.sigmamin = 1e-9;
+solver.sigmaMin = 1e-9;
 solver.zeta = 1e-9*ones(nel,1);
 solver.mode = 'current';
 disp('Forward problem solver set up')
@@ -58,10 +58,10 @@ resobj{2} = TVPrior;
 resobj{3} = PosiPrior;
 InvSolver = SolverGN(resobj);
 InvSolver.maxIter = 150;
-InvSolver.Plotter = plotter;
+InvSolver.plotter = plotter;
 
 sigmainit = ones(size(g,1),1);
-hesti = Estimate_vec({ones(size(g,1),1), 1e-5*ones(32,1)});
+hesti = EstimateVec({ones(size(g,1),1), 1e-5*ones(32,1)});
 InvMpat = tril(-ones(nel),-1);
 InvMpat(:,end) = [];
 score = zeros(7, 3);
@@ -77,17 +77,17 @@ for ilevel = 1:7
         Uelrefvec = InvMpat*Uelrefmat;
         Uelrefvec = Uelrefvec - mean(Uelrefvec, 'omitnan');
         Uelrefvec = Uelrefvec(:);
-        solver.vincl = ~isnan(Uelrefvec);
+        solver.mIncl = ~isnan(Uelrefvec);
         Uelrefvec(isnan(Uelrefvec)) = [];
         solver.Uel = Uelrefvec;
     else
-        solver.vincl = ~isnan(Uelref);
+        solver.mIncl = ~isnan(Uelref);
         solver.Uel = Uelref(~isnan(Uelref));
         solver.Mpat = Mpat;
     end
     solver.SetInvGamma(1e-3, 3e-2);
-    solver.zind = 2;
-    [eps, hest] = SolveEpsilonCorrection_withz(solver, hesti);
+    solver.zInd = 2;
+    [eps, hest] = SolveEpsilonCorrectionWithZ(solver, hesti);
     solver.zeta = hest.estimates{2};
 
     for idata = 1:3
@@ -101,20 +101,20 @@ for ilevel = 1:7
             Uelvec = InvMpat*Uelmat;
             Uelvec = Uelvec - mean(Uelvec, 'omitnan');
             Uelvec = Uelvec(:);
-            solver.vincl = ~isnan(Uelvec);
-            eps2 = eps(solver.vincl);
+            solver.mIncl = ~isnan(Uelvec);
+            eps2 = eps(solver.mIncl);
             Uelvec(isnan(Uelvec)) = [];
             solver.Uel = Uelvec(:);
         else
-            solver.vincl = ~isnan(Uel);
-            eps2 = eps(solver.vincl);
+            solver.mIncl = ~isnan(Uel);
+            eps2 = eps(solver.mIncl);
             solver.Uel = Uel(~isnan(Uel));
             solver.eps = eps2;
         end
         solver.SetInvGamma(1e-3, 3e-2);
 
         disp('All set! Beginning to solve the inverse problem.')
-        reco = InvSolver.solve(hest.estimates{1}*sigmainit);
+        reco = InvSolver.Solve(hest.estimates{1}*sigmainit);
 
         save(['Figures/data' num2str(ilevel) '_' num2str(idata) '.mat'], 'reco', 'InvSolver');
         %saveas(InvSolver.Plotter.fig, ['Figures/figure' num2str(ilevel) '_' num2str(idata) '.png']);

@@ -7,7 +7,7 @@ classdef PriorPositivityParabolic < handle
     properties
         a %the constraint function value will be a*(x-minAcceptable)^2 for all x < minAcceptable
         minAcceptable%The minimum value of estimate that is not penalized
-        omitind
+        omitInd
     end
     methods
         function obj = PriorPositivityParabolic(minAcceptable, valAt0)
@@ -19,10 +19,10 @@ classdef PriorPositivityParabolic < handle
             obj.a = valAt0./(minAcceptable.^2);
         end
         function res = OptimizationFunction(self, est)
-            if isa(est, 'Estimate_vec')
+            if isa(est, 'EstimateVec')
                 res = 0;
                 for ii = 1:length(est.estimates)
-                    if ismember(ii, self.omitind)
+                    if ismember(ii, self.omitInd)
                         continue;
                     end
                     if length(self.a) < ii
@@ -39,11 +39,11 @@ classdef PriorPositivityParabolic < handle
         end
         function [Hess, grad] = GetHessAndGrad(self, est)
 
-            if isa(est, 'Estimate_vec')
+            if isa(est, 'EstimateVec')
                 HC = cell(length(est.estimates));
                 gC = cell(length(est.estimates),1);
                 for ii = 1:length(est.estimates)
-                    if ismember(ii, self.omitind)
+                    if ismember(ii, self.omitInd)
                         continue;
                     end
                     if length(self.a) < ii
@@ -59,8 +59,8 @@ classdef PriorPositivityParabolic < handle
                     Hessvec(select) = 2*self.a(ii);
                     HC{ii,ii} = diag(Hessvec);
                 end
-                Hess = Estimate_Hess(HC);
-                grad = Estimate_vec(gC);
+                Hess = EstimateHess(HC);
+                grad = EstimateVec(gC);
             else
                 grad = zeros(length(est),1);
                 select = est<self.minAcceptable;

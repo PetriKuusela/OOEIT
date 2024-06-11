@@ -11,7 +11,7 @@ if nargin < 3 || isempty(sigma)
     sigma = ones(fm.nginv,1);
 end
 if nargin < 4 || isempty(z)
-    z = 1e-6*ones(fm.nel,1);
+    z = 1e-6*ones(fm.nEl,1);
 end
 if nargin < 6 || isempty(mode)
     if nargin > 4 && ~isempty(fsolver)
@@ -34,7 +34,7 @@ end
         fsolver = EITFEM(fm);
         fsolver.zeta = z;
         fsolver.mode = mode;
-        fsolver.sigmamin = 1e-9;
+        fsolver.sigmaMin = 1e-9;
         if strcmp(mode, 'potential')
             fsolver.Uel = eye(length(fm.E));%Injection pattern
             fsolver.Uel= fsolver.Uel(:);

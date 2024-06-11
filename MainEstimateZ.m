@@ -3,7 +3,7 @@ close all; clear all; clc
 %simulation where also the contact impedances are estimated without inverse
 %crime.
 
-initialize_OOEIT();%Make sure all the relevant paths are added
+InitializeOOEIT();%Make sure all the relevant paths are added
 
 %% Create simulated data
 disp('Creating simulated data');
@@ -32,7 +32,7 @@ solver = EITFEM(fm);
 solver.Iel = Imeas;
 solver.Uel = Umeas;
 solver.SetInvGamma(1e-3, 3e-2);
-solver.zind = 2;%The index of contact impedance estimate in the Estimate_vec object
+solver.zInd = 2;%The index of contact impedance estimate in the EstimateVec object
 disp('Forward problem solver set up')
 
 %Set up the Total Variation prior:
@@ -56,15 +56,15 @@ resobj = cell(3, 1);
 resobj{1} = solver;
 resobj{2} = TVPrior;
 resobj{3} = PosiPrior;
-InvSolver = SolverGN(resobj);
-InvSolver.Plotter = ph;
+invSolver = SolverGN(resobj);
+invSolver.plotter = ph;
 
 %Make the initial guess and start solving!
 sigmainitial = ones(size(g,1),1);
 zinitial = 1e-3*ones(length(elfaces),1);
-est = Estimate_vec({sigmainitial; zinitial});%This is the full initial guess
+est = EstimateVec({sigmainitial; zinitial});%This is the full initial guess
 
 disp('All set! Beginning to solve the inverse problem.')
-reco = InvSolver.solve(est);
+reco = invSolver.Solve(est);
 
 
