@@ -146,9 +146,9 @@ classdef SolverGN < handle
 
                 %If the optimizaiton function values are plotted
                 %separately, collect the necessary values at start point
-                if self.showSplitVals
-                    fvalsplit = self.SplitFvals(sigEst)';
-                end
+                %if self.showSplitVals
+                %    fvalsplit = self.SplitFvals(sigEst)';
+                %end
 
                 %Line search begins (assume there is only one local minimum on the region
                 %accessible to this algorithm)
@@ -171,9 +171,10 @@ classdef SolverGN < handle
                 d = [-lastd 0 lastd]';%vector containing different relative step lengths tried
                 ii = 3;%the line search iteration counter (the first three points are fixed)
                 fval = zeros(3,1);
-                fval(2) = self.CalculateFval(sigEst); %the optimization function value of the fixed points
-                fval(1) = self.CalculateFval(sigEst + d(1)*deltasigma);
-                fval(3) = self.CalculateFval(sigEst + d(3)*deltasigma);
+                fvalSplit = zeros(3,nobj);
+                [fval(2), fvalSplit(2,:)] = self.CalculateFval(sigEst); %the optimization function value of the fixed points
+                [fval(1), fvalSplit(1,:)] = self.CalculateFval(sigEst + d(1)*deltasigma);
+                [fval(3), fvalSplit(3,:)] = self.CalculateFval(sigEst + d(3)*deltasigma);
                 while cont == 1%This is the loop for the linesearch
                     
                     %find the minimum point
@@ -214,10 +215,10 @@ classdef SolverGN < handle
 
                     %The new point to try
                     sigest_new = sigEst + d(ii)*deltasigma;
-                    fval(ii) = self.CalculateFval(sigest_new);%in each point we calculate the optimization function value
-                    if self.showSplitVals
-                        fvalsplit(ii,:) = self.SplitFvals(sigest_new)';%Get also the separate optimization function values of each function
-                    end
+                    [fval(ii), fvalSplit(ii,:)] = self.CalculateFval(sigest_new);%in each point we calculate the optimization function value
+                    %if self.showSplitVals
+                    %    fvalsplit(ii,:) = self.SplitFvals(sigest_new)';%Get also the separate optimization function values of each function
+                    %end
                     if parabolicnow && ((~direction && fval(ii) > max(fval(inds2))) || notGood || abs(d(ii)-d(minind))>maxd && fval(ii)>fval(minind))
                         %We have a reason to abandon the parabolic-fitting
                         %linesearch (will be reset at next linesearch again)
@@ -227,7 +228,7 @@ classdef SolverGN < handle
                     %Plot the fvals of the linesearch
                     if self.plotLinesearch
                         if self.showSplitVals
-                            self.LinesearchPlot(d, fvalsplit, ii);
+                            self.LinesearchPlot(d, fvalSplit, ii);
                         else
                             self.LinesearchPlot(d, fval, ii);
                         end
@@ -252,6 +253,7 @@ classdef SolverGN < handle
                     [d, dinds] = sort(d);
                     %the fvals have to match the distance indices as well
                     fval = fval(dinds);
+                    fvalSplit = fvalSplit(dinds,:);
                     
                 end%end linesearch, move on to the next GN iteration
                 
@@ -319,12 +321,15 @@ classdef SolverGN < handle
             
         end
         
-        function res = CalculateFval(self, sigest)
+        function [res, res2] = CalculateFval(self, sigest)
             %Calculate the sum of optimization function values at sigest
+            %(res) and the individual optimization function values (res2)
             nobj = length(self.oFuns);
             res = 0;
+            res2 = zeros(nobj,1);
             for io = 1:nobj
-                res = res + self.oFuns{io}.OptimizationFunction(sigest);
+                res2(io) = self.oFuns{io}.OptimizationFunction(sigest);
+                res = res + res2(io);
             end
         end
 
@@ -355,7 +360,7 @@ classdef SolverGN < handle
                 end
 
                 %Sort the points by relative distance
-                [dsorted, sorti] = sort(d(1:end-1));
+                [dsorted, sorti] = sort(d);
                 fvalsorted = fval(sorti,:);
 
                 clf;
@@ -435,6 +440,7 @@ classdef SolverGN < handle
         end
 
         function [res, grads, Hs] = SplitFvals(self, sigEst)
+            %DEPRECATED (maybe useful for computing grads and Hs for debugging)
             %The first output is the same as CalculateFval above, but this
             %returns a vector of same length as self.ofuns, with the fval
             %of each ofun separate as it's own element. The two further

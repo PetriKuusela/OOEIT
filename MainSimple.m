@@ -1,5 +1,5 @@
 %This main-file features the example codes presented in the OOEIT article
-%(not yet published by the time of this comment). This is a very basic
+%(DOI: 10.3934/ammc.2024010). This is a very basic
 %usecase of first simulating the EIT measurements and then reconstructing
 %the conductivity distribution based on the measurements.
 % 

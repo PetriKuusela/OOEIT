@@ -141,11 +141,11 @@ classdef PriorTotalVariation < handle
             %Compute the gradients of the sigma, using the pre-computed
             %self.gradphi.
             N = size(self.gradphi,1);
-            gradsigma = zeros(N,2);
+            gradsigma = zeros(N,size(self.g,2));
             for ii=1:N
                 sigmas = sigest(self.H(ii,:));
                 grads = self.gradphi{ii};
-                gradsigma(ii,:) = sigmas(1)*grads(1,:) +  sigmas(2)*grads(2,:) +  sigmas(3)*grads(3,:);
+                gradsigma(ii,:) = sum(diag(sigmas)*grads);
             end
         end
         
@@ -154,10 +154,11 @@ classdef PriorTotalVariation < handle
             % Also calculates the area of each element.
             N = size(H,1);
             gN = size(g,1);
+            gdim = size(g,2);
             gradphi = cell(N,1);
             areas = zeros(N,1);
-            L = [-1 1 0; -1 0 1];
-            R = sparse(2*N,gN);
+            L = [-ones(gdim,1) eye(gdim)];
+            %R = sparse(2*N,gN);
             for ii=1:N
                 X = g(H(ii,:),:);
                 Jt = L*X;
