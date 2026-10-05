@@ -48,9 +48,15 @@ classdef PriorSmoothness < handle
             ymat = repmat(g(:,2),1,ng);
             zmat = 0;
             if size(g,2) > 2%if the mesh is 3D
-                zmat = repmat(g(:,2),1,ng);
+                zmat = repmat(g(:,3),1,ng);
             end
-            cov = a*exp(-0.5*((xmat-xmat').^2+(ymat-ymat').^2+(zmat-zmat').^2)/b^2);
+            if length(b) == 1
+                cov = a*exp(-0.5*((xmat-xmat').^2+(ymat-ymat').^2+(zmat-zmat').^2)/b^2);
+            elseif length(b) == 2
+                cov = a*exp(-0.5*((xmat-xmat').^2/(b(1)^2)+(ymat-ymat').^2./(b(2)^2)));
+            else
+                cov = a*exp(-0.5*((xmat-xmat').^2/(b(1)^2)+(ymat-ymat').^2/(b(2)^2)+(zmat-zmat').^2/(b(3)^2)));
+            end
             cov = cov + diag(c(1)*ones(size(cov,1),1)) + self.common_c*var(1)*ones(size(cov,1));
             self.invCov = inv(cov);
         end

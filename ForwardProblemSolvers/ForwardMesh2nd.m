@@ -75,9 +75,9 @@ classdef ForwardMesh2nd < handle
             L = cell(size(ip,1),1);
             for ii = 1:size(ip,1)
                 if self.gDim == 3
-                    L{ii}= [4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 4*ip(ii,1)-1 0 0 -8*ip(ii,1)+4-4*ip(ii,2)-4*ip(ii,3) 4*ip(ii,2) -4*ip(ii,2) -4*ip(ii,3) 4*ip(ii,3) 0;
-                            4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 0 4*ip(ii,2)-1 0 -4*ip(ii,1) 4*ip(ii,1) -8*ip(ii,2)+4-4*ip(ii,1)-4*ip(ii,3) -4*ip(ii,3) 0 4*ip(ii,3);
-                            4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 0 0 4*ip(ii,3)-1 -4*ip(ii,1) 0 -4*ip(ii,2) -8*ip(ii,3)+4-4*ip(ii,1)-4*ip(ii,2) 4*ip(ii,1) 4*ip(ii,2)];
+                    L{ii}= [4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 4*ip(ii,1)-1 0 0 -8*ip(ii,1)+4-4*ip(ii,2)-4*ip(ii,3) 4*ip(ii,2) -4*ip(ii,2) -4*ip(ii,3) 0 4*ip(ii,3);
+                            4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 0 4*ip(ii,2)-1 0 -4*ip(ii,1) 4*ip(ii,1) -8*ip(ii,2)+4-4*ip(ii,1)-4*ip(ii,3) -4*ip(ii,3) 4*ip(ii,3) 0;
+                            4*ip(ii,1)+4*ip(ii,2)+4*ip(ii,3)-3 0 0 4*ip(ii,3)-1 -4*ip(ii,1) 0 -4*ip(ii,2) -8*ip(ii,3)+4-4*ip(ii,1)-4*ip(ii,2) 4*ip(ii,2) 4*ip(ii,1)];
                 elseif self.gDim == 2
                     L{ii} = error;
                 end

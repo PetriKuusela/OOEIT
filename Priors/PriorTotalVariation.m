@@ -38,8 +38,13 @@ classdef PriorTotalVariation < handle
             
             obj.g = g;
             obj.H = H;
-            mesh_a = (max(max(g(:,1)))-min(min(g(:,1))))*(max(max(g(:,2)))-min(min(g(:,2))))/size(H,1);%roughly the element area of the mesh
-            mesh_c = sqrt(2*mesh_a);%roughly the element size of mesh
+            if size(g,2) > 2
+                mesh_a = (max(g(:,1))-min(g(:,1)))*(max(g(:,2))-min(g(:,2)))*(max(g(:,3))-min(g(:,3)))/size(H,1);%roughly the element volume of the mesh
+                mesh_c = (6*mesh_a)^(1/3);%roughly the element size of mesh
+            else
+                mesh_a = (max(max(g(:,1)))-min(min(g(:,1))))*(max(max(g(:,2)))-min(min(g(:,2))))/size(H,1);%roughly the element area of the mesh
+                mesh_c = sqrt(2*mesh_a);%roughly the element size of mesh
+            end
             egrad = ec./mesh_c;%expected gradient
             tvp = 0.975;
             obj.alpha = -ef.*log(1-tvp)./(mesh_a*egrad);
@@ -77,11 +82,12 @@ classdef PriorTotalVariation < handle
                 gC = cell(length(est.estimates),1);
             end
             
+            npe = size(self.H, 2);
             for io = 1:length(self.sigmaInd)
                 grad = zeros(self.ng,1);%initialize arrays for gradient and Hess-matrix
-                Hvals = zeros(9*self.nH,1);%Hess matrix is collected in sparse form
-                HindsI = zeros(9*self.nH,1);
-                HindsJ = zeros(9*self.nH,1);
+                Hvals = zeros((npe^2)*self.nH,1);%Hess matrix is collected in sparse form
+                HindsI = zeros((npe^2)*self.nH,1);
+                HindsJ = zeros((npe^2)*self.nH,1);
                 if isa(est, 'EstimateVec')
                     gradsigma = self.ComputeGrads(est.estimates{self.sigmaInd(io)});
                 else
@@ -107,8 +113,8 @@ classdef PriorTotalVariation < handle
                     gnorm = (sum(tdsigma.^2) + self.beta)^(-0.5);%These are parts of the Hessian
                     gnorm2 = (sum(tdsigma.^2) + self.beta)^(-1.5);
                     
-                    for jj=1:3
-                        for kk=1:3
+                    for jj=1:npe
+                        for kk=1:npe
                             phii = tdgrads(jj,:);%grad? of basis function_i
                             phij = tdgrads(kk,:);%grad? of basis function_j
                             f = phii*phij'*gnorm;
@@ -122,10 +128,10 @@ classdef PriorTotalVariation < handle
                 end
 
                 if isa(est, 'EstimateVec')
-                    HC{self.sigmaInd(io), self.sigmaInd(io)} = accumarray([HindsI HindsJ], Hvals);
+                    HC{self.sigmaInd(io), self.sigmaInd(io)} = accumarray([HindsI HindsJ], Hvals, [self.ng self.ng]);
                     gC{self.sigmaInd(io)} = grad;
                 else
-                    Hess = accumarray([HindsI HindsJ], Hvals);
+                    Hess = accumarray([HindsI HindsJ], Hvals, [self.ng self.ng]);
                 end
 
             end
@@ -162,7 +168,7 @@ classdef PriorTotalVariation < handle
             for ii=1:N
                 X = g(H(ii,:),:);
                 Jt = L*X;
-                areas(ii) = 1/2*abs(det(Jt));
+                areas(ii) = 1/factorial(gdim)*abs(det(Jt));
                 grads = Jt\L;
                 grads = grads';
                 gradphi{ii} = grads;
